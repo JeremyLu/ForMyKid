@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷宫生成和解迷宫</title>
+	<style>
+		body {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			height: 100vh;
+			margin: 0;
+			background-color: #f0f0f0;
+			font-family: Arial, sans-serif;
+		}
+
+		canvas {
+			border: 1px solid black;
+			max-width: 90%;
+			max-height: 80%;
+			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+		}
+
+		.controls {
+			margin: 10px;
+			text-align: center;
+		}
+
+		.controls label, .controls select, .controls button, .controls input {
+			margin: 5px;
+			font-size: 1em;
+			padding: 5px;
+		}
+
+		@media (max-width: 600px) {
+			.controls {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+
+			.controls label, .controls select, .controls button, .controls input {
+				width: 90%;
+				max-width: 300px;
+				margin: 5px 0;
+			}
+		}
+	</style>
+
+</head>
+<body>
+    <div class="controls">
+        <label for="difficulty">选择难度：</label>
+        <select id="difficulty">
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high" selected>高</option>
+        </select>
+        <button id="resetButton">重新绘制迷宫</button>
+        <label for="showPath">显示路径：</label>
+        <input type="checkbox" id="showPath" checked>
+    </div>
+    <canvas id="mazeCanvas" width="1200" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        let cellSize = 20;
+        let cols, rows;
+        let grid = [];
+        let stack = [];
+        let player;
+        let path = [];
+
+        class Cell {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.walls = [true, true, true, true]; // Top, Right, Bottom, Left
+                this.visited = false;
+            }
+
+            show() {
+                const x = this.x * cellSize;
+                const y = this.y * cellSize;
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+
+                if (this.walls[0]) ctx.beginPath(), ctx.moveTo(x, y), ctx.lineTo(x + cellSize, y), ctx.stroke(); // Top
+                if (this.walls[1]) ctx.beginPath(), ctx.moveTo(x + cellSize, y), ctx.lineTo(x + cellSize, y + cellSize), ctx.stroke(); // Right
+                if (this.walls[2]) ctx.beginPath(), ctx.moveTo(x, y + cellSize), ctx.lineTo(x + cellSize, y + cellSize), ctx.stroke(); // Bottom
+                if (this.walls[3]) ctx.beginPath(), ctx.moveTo(x, y), ctx.lineTo(x, y + cellSize), ctx.stroke(); // Left
+
+                if (this.visited) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x, y, cellSize, cellSize);
+                }
+            }
+
+            checkNeighbors() {
+                const neighbors = [];
+
+                const top = grid[index(this.x, this.y - 1)];
+                const right = grid[index(this.x + 1, this.y)];
+                const bottom = grid[index(this.x, this.y + 1)];
+                const left = grid[index(this.x - 1, this.y)];
+
+                if (top && !top.visited) neighbors.push(top);
+                if (right && !right.visited) neighbors.push(right);
+                if (bottom && !bottom.visited) neighbors.push(bottom);
+                if (left && !left.visited) neighbors.push(left);
+
+                if (neighbors.length > 0) {
+                    const r = Math.floor(Math.random() * neighbors.length);
+                    return neighbors[r];
+                } else {
+                    return undefined;
+                }
+            }
+        }
+
+        function index(x, y) {
+            if (x < 0 || y < 0 || x >= cols || y >= rows) return -1;
+            return x + y * cols;
+        }
+
+        function setup(difficulty) {
+            switch (difficulty) {
+                case 'low':
+                    cellSize = 40;
+                    break;
+                case 'medium':
+                    cellSize = 30;
+                    break;
+                case 'high':
+                    cellSize = 20;
+                    break;
+            }
+
+            cols = Math.floor(canvas.width / cellSize);
+            rows = Math.floor(canvas.height / cellSize);
+            grid = [];
+            stack = [];
+            path = [];
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const cell = new Cell(x, y);
+                    grid.push(cell);
+                }
+            }
+
+            const start = grid[0];
+            start.visited = true;
+            stack.push(start);
+
+            player = start; // 初始化玩家位置
+            path.push(player); // 记录初始位置
+
+            generateMaze(difficulty);
+        }
+
+        function generateMaze(difficulty) {
+            let steps;
+            switch (difficulty) {
+                case 'low':
+                    steps = 50000; // 增加步骤数以确保低难度迷宫能生成完
+                    break;
+                case 'medium':
+                    steps = 50000; // 增加步骤数以确保中等难度迷宫能生成完
+                    break;
+                case 'high':
+                    steps = 50000; // 高难度保持不变
+                    break;
+            }
+
+            const walls = [];
+            const start = grid[0];
+            start.visited = true;
+
+            // Add the walls of the start cell to the walls list
+            walls.push({ current: start, neighbor: grid[index(start.x, start.y - 1)], direction: 0 }); // Top
+            walls.push({ current: start, neighbor: grid[index(start.x + 1, start.y)], direction: 1 }); // Right
+            walls.push({ current: start, neighbor: grid[index(start.x, start.y + 1)], direction: 2 }); // Bottom
+            walls.push({ current: start, neighbor: grid[index(start.x - 1, start.y)], direction: 3 }); // Left
+
+            function processWalls() {
+                while (walls.length > 0 && steps > 0) {
+                    const randomIndex = Math.floor(Math.random() * walls.length);
+                    const { current, neighbor, direction } = walls.splice(randomIndex, 1)[0];
+
+                    if (neighbor && !neighbor.visited) {
+                        neighbor.visited = true;
+                        removeWalls(current, neighbor, direction);
+
+                        walls.push({ current: neighbor, neighbor: grid[index(neighbor.x, neighbor.y - 1)], direction: 0 }); // Top
+                        walls.push({ current: neighbor, neighbor: grid[index(neighbor.x + 1, neighbor.y)], direction: 1 }); // Right
+                        walls.push({ current: neighbor, neighbor: grid[index(neighbor.x, neighbor.y + 1)], direction: 2 }); // Bottom
+                        walls.push({ current: neighbor, neighbor: grid[index(neighbor.x - 1, neighbor.y)], direction: 3 }); // Left
+                    }
+
+                    steps--;
+                }
+
+                if (walls.length > 0) {
+                    requestAnimationFrame(processWalls);
+                } else {
+                    // 确保起点和终点之间有一条路径
+                    ensurePathToEnd();
+                    draw();
+                }
+            }
+
+            processWalls();
+        }
+
+        function ensurePathToEnd() {
+            const end = grid[grid.length - 1];
+            if (!end.visited) {
+                // 回溯生成一条路径到终点
+                let current = grid[0];
+                while (current !== end) {
+                    const neighbors = getUnvisitedNeighbors(current);
+                    if (neighbors.length > 0) {
+                        //const next = neighbors[0];
+						const next = neighbors[Math.floor(Math.random() * neighbors.length)]; // 随机选择一个邻居
+                        removeWalls(current, next, getDirection(current, next));
+                        next.visited = true;
+                        current = next;
+                    }
+                }
+            }
+        }
+
+        function getUnvisitedNeighbors(cell) {
+            const neighbors = [];
+
+            const top = grid[index(cell.x, cell.y - 1)];
+            const right = grid[index(cell.x + 1, cell.y)];
+            const bottom = grid[index(cell.x, cell.y + 1)];
+            const left = grid[index(cell.x - 1, cell.y)];
+
+            if (top && !top.visited) neighbors.push(top);
+            if (right && !right.visited) neighbors.push(right);
+            if (bottom && !bottom.visited) neighbors.push(bottom);
+            if (left && !left.visited) neighbors.push(left);
+
+			neighbors.sort(() => Math.random() - 0.5); // 随机排序
+            return neighbors;
+        }
+
+        function getDirection(a, b) {
+            if (a.x === b.x && a.y - 1 === b.y) return 0; // Top
+            if (a.x + 1 === b.x && a.y === b.y) return 1; // Right
+            if (a.x === b.x && a.y + 1 === b.y) return 2; // Bottom
+            if (a.x - 1 === b.x && a.y === b.y) return 3; // Left
+        }
+
+        function weightedRandomNeighbor(cell) {
+            const neighbors = [];
+
+            const top = grid[index(cell.x, cell.y - 1)];
+            const right = grid[index(cell.x + 1, cell.y)];
+            const bottom = grid[index(cell.x, cell.y + 1)];
+            const left = grid[index(cell.x - 1, cell.y)];
+
+            if (top && !top.visited) neighbors.push({ cell: top, weight: Math.random() });
+            if (right && !right.visited) neighbors.push({ cell: right, weight: Math.random() });
+            if (bottom && !bottom.visited) neighbors.push({ cell: bottom, weight: Math.random() });
+            if (left && !left.visited) neighbors.push({ cell: left, weight: Math.random() });
+
+            neighbors.sort((a, b) => b.weight - a.weight);
+
+            return neighbors.length > 0 ? neighbors[0].cell : undefined;
+        }
+
+        function removeWalls(a, b, direction) {
+            if (direction === 0) { // Top
+                a.walls[0] = false;
+                b.walls[2] = false;
+            } else if (direction === 1) { // Right
+                a.walls[1] = false;
+                b.walls[3] = false;
+            } else if (direction === 2) { // Bottom
+                a.walls[2] = false;
+                b.walls[0] = false;
+            } else if (direction === 3) { // Left
+                a.walls[3] = false;
+                b.walls[1] = false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (const cell of grid) {
+                cell.show();
+            }
+
+            if (document.getElementById('showPath').checked) {
+                drawPath();
+            }
+            drawPlayer();
+            drawStartEnd();
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(player.x * cellSize + 2, player.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
+
+        function drawPath() {
+            ctx.fillStyle = 'lightblue';
+            for (const cell of path) {
+                ctx.fillRect(cell.x * cellSize + 2, cell.y * cellSize + 2, cellSize - 4, cellSize - 4);
+            }
+        }
+
+        function drawStartEnd() {
+            // Draw start
+            const start = grid[0];
+            ctx.fillStyle = 'green';
+            ctx.fillRect(start.x * cellSize + 2, start.y * cellSize + 2, cellSize - 4, cellSize - 4);
+
+            // Draw end
+            const end = grid[grid.length - 1];
+            ctx.fillStyle = 'red';
+            ctx.fillRect(end.x * cellSize + 2, end.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
+
+        function checkWin() {
+            const end = grid[grid.length - 1];
+            if (player === end) {
+                setTimeout(() => alert("恭喜你，成功到达终点！"), 10);
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const key = event.key;
+            let next;
+
+            switch (key) {
+                case 'ArrowUp':
+                    if (!player.walls[0]) next = grid[index(player.x, player.y - 1)];
+                    break;
+                case 'ArrowRight':
+                    if (!player.walls[1]) next = grid[index(player.x + 1, player.y)];
+                    break;
+                case 'ArrowDown':
+                    if (!player.walls[2]) next = grid[index(player.x, player.y + 1)];
+                    break;
+                case 'ArrowLeft':
+                    if (!player.walls[3]) next = grid[index(player.x - 1, player.y)];
+                    break;
+            }
+
+            if (next && next.visited) {
+                player = next;
+                path.push(player); // 记录玩家移动路径
+                checkWin(); // 检查是否到达终点
+            }
+
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const col = Math.floor(x / cellSize);
+            const row = Math.floor(y / cellSize);
+
+            const next = grid[index(col, row)];
+
+            if (next && next.visited && isAdjacent(player, next) && !isCrossingWalls(player, next)) {
+                player = next;
+                path.push(player); // 记录玩家移动路径
+                checkWin(); // 检查是否到达终点
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            if (event.buttons !== 1) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const col = Math.floor(x / cellSize);
+            const row = Math.floor(y / cellSize);
+
+            const next = grid[index(col, row)];
+
+            if (next && next.visited && isAdjacent(player, next) && !isCrossingWalls(player, next)) {
+                player = next;
+                path.push(player); // 记录玩家移动路径
+                checkWin(); // 检查是否到达终点
+                draw();
+            }
+        });
+
+        function isCrossingWalls(current, next) {
+            const xDiff = next.x - current.x;
+            const yDiff = next.y - current.y;
+
+            if (xDiff === 1 && current.walls[1]) return true;
+            if (xDiff === -1 && current.walls[3]) return true;
+            if (yDiff === 1 && current.walls[2]) return true;
+            if (yDiff === -1 && current.walls[0]) return true;
+
+            return false;
+        }
+
+        function isAdjacent(current, next) {
+            const xDiff = Math.abs(next.x - current.x);
+            const yDiff = Math.abs(next.y - current.y);
+            return (xDiff + yDiff) === 1;
+        }
+		
+		        // 处理触摸事件
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            const touch = e.changedTouches[0];
+            //const dx = touch.clientX - touchStartX;
+            //const dy = touch.clientY - touchStartY;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            const col = Math.floor(x / cellSize);
+            const row = Math.floor(y / cellSize);
+
+            const next = grid[index(col, row)];
+
+            if (next && next.visited && isAdjacent(player, next) && !isCrossingWalls(player, next)) {
+                player = next;
+                path.push(player); // 记录玩家移动路径
+                checkWin(); // 检查是否到达终点
+                draw();
+            }
+        });
+
+        document.getElementById('resetButton').addEventListener('click', () => {
+            const difficulty = document.getElementById('difficulty').value;
+            setup(difficulty);
+        });
+
+        setup('high');
+    </script>
+</body>
+</html>

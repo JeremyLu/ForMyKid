@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Random Sudoku Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .sudoku-container {
+            display: flex;
+            flex-wrap: wrap;
+            width: 450px;
+            margin: 20px auto;
+        }
+		.sudoku-cell.editable {
+			font-weight: bold; /* 字体加粗 */
+			color: #FF0000; /* 深色字体，适用于浅色背景 */
+		}
+        .sudoku-cell.disabled {
+			background-color: #C7EDCC;
+		}
+        .sudoku-row {
+            display: flex;
+        }
+		
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+		
+        .myAlert {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #eed3d7;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+		
+        .myAlertSuccess {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #c4e3d3;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        
+        /* 新增的CSS样式，为每个小格子添加格子线 */
+		.sudoku-cell {
+			width: 50px;
+			height: 50px;
+			border: 1px solid #ccc;
+			text-align: center;
+			line-height: 50px;
+			font-size: 24px;
+			background-color: #f9f9f9;
+			border-bottom: 3px solid #333;
+			border-right: 3px solid #333;
+		}
+		/* 清除单元格内部的边框 */
+		.sudoku-cell input[type="text"] {
+			border: bold;
+		}
+
+		/* 定义9种不同颜色的类 */
+		.sudoku-cell.color-1 { background-color: #C8E6C9; } /* 浅绿 */
+		.sudoku-cell.color-2 { background-color: #FFECB3; } /* 浅黄 */
+		.sudoku-cell.color-3 { background-color: #FFCCBC; } /* 浅红 */
+		.sudoku-cell.color-4 { background-color: #E1BEE7; } /* 浅紫 */
+		.sudoku-cell.color-5 { background-color: #B3E5FC; } /* 浅蓝 */
+		.sudoku-cell.color-6 { background-color: #FFCDD2; } /* 桃红 */
+		.sudoku-cell.color-7 { background-color: #FFD180; } /* 橙黄 */
+		.sudoku-cell.color-8 { background-color: #C5E1A5; } /* 深绿 */
+		.sudoku-cell.color-9 { background-color: #D1C4E9; } /* 深紫 */
+
+		/* 高亮样式 */
+		.sudoku-cell.highlight-row,
+		.sudoku-cell.highlight-col {
+			background-color: rgba(0, 0, 255, 0.5); /* 半透明蓝色背景 */
+			color: white; /* 白色字体 */
+			font-weight: bold; /* 字体加粗 */
+			border: bold;
+			font-size: 32px;
+		}
+    </style>
+</head>
+<body>
+	<h1>Random Sudoku Game</h1>
+	<div id="alert-message">
+	</div>
+    <div>
+        <label for="difficulty">difficulty</label>
+        <select id="difficulty">
+            <option value="easy">easy</option>
+            <option value="medium">medium</option>
+            <option value="hard">hard</option>
+        </select>
+    </div>
+    <button onclick="generateSudoku()">Generate Sudoku</button>
+    <button onclick="showSolution()">Show Solution</button>
+	<button onclick="checkSudoku()">Check Sudoku</button>
+    <div class="sudoku-container">
+	</div>
+
+    <script>
+		var sudoku;
+			
+        // 初始化数独
+		function generateSudoku() {
+			const difficulty = document.getElementById('difficulty').value;
+			const container = document.querySelector('.sudoku-container');
+			container.innerHTML = ''; // 清空现有的数独
+			
+			// 清空提示
+			const alertDiv = document.querySelector('#alert-message');
+			alertDiv.className = ''; 
+			alertDiv.innerHTML = '';
+			
+			// 生成数独
+			sudoku = generateRandomSudoku();
+			// 创建数独表格
+			for (let i = 0; i < 9; i++) {
+				const row = document.createElement('div');
+				row.className = 'sudoku-row';
+				for (let j = 0; j < 9; j++) {
+					const cell = document.createElement('input');
+					cell.type = 'text';
+					cell.className = 'sudoku-cell';
+					cell.maxLength = 1;
+					cell.value = sudoku[i][j] || '';
+					cell.disabled = true;
+                    cell.classList.add('disabled');
+					// 根据难度遮掩单元
+					let cellsToMask;
+					switch (difficulty) {
+						case 'easy':
+							cellsToMask = 9;
+							break;
+						case 'medium':
+							cellsToMask = 18;
+							break;
+						case 'hard':
+							cellsToMask = 27;
+							break;
+						default:
+							cellsToMask = 0;
+					}
+					// 随机选择单元格进行遮掩
+					if (cellsToMask > 0 && sudoku[i][j] !== 0) { // 确保只遮掩预填的单元格
+						const mask = Math.random() < cellsToMask / 81; // 计算遮掩概率
+						if (mask) {
+							cell.value = ''; // 清空单元格值
+							cell.disabled = false; // 禁用单元格
+							cell.classList.remove('disabled');
+							cell.classList.add('editable');
+							cellsToMask--; // 减少需要遮掩的单元格数量
+						}
+					}
+
+					// 为单元格添加鼠标悬浮和鼠标离开事件监听器
+					cell.addEventListener('mouseover', function() {
+						// 高亮点击单元格所在的行和列
+						for (let k = 0; k < 9; k++) {
+							container.children[i].children[k].classList.add('highlight-row');
+							container.children[k].children[j].classList.add('highlight-col');
+						}
+					});
+					cell.addEventListener('mouseout', function() {
+						// 移除所有行和列的高亮样式
+						document.querySelectorAll('.sudoku-cell').forEach(function(cell) {
+							cell.classList.remove('highlight-row', 'highlight-col');
+						});
+					});
+					row.appendChild(cell);
+				}
+				container.appendChild(row);
+			}
+
+			// 为每个3x3区域添加不同的颜色类
+			for (let i = 0; i < 9; i++) {
+				for (let j = 0; j < 9; j++) {
+					const regionIndex = Math.floor(i / 3) * 3 + Math.floor(j / 3) + 1; // 计算区域索引
+					const cell = container.children[i].children[j];
+					cell.classList.add(`color-${regionIndex}`);
+				}
+			}
+		}
+		
+		function generateRandomSudoku() {
+			// 初始化一个空的9x9数组
+			let board = Array.from({ length: 9 }, () => Array(9).fill(0));
+			// 递归函数填充数独
+			function fillBoard() {
+				for (let row = 0; row < 9; row++) {
+					for (let col = 0; col < 9; col++) {
+						if (board[row][col] === 0) {
+							const availableNumbers = getAvailableNumbers(board, row, col);
+							if (availableNumbers.length === 0) {
+								return false; // 无可用数字，回溯
+							}
+							shuffleArray(availableNumbers); // 打乱可用数字的顺序
+							for (const num of availableNumbers) {
+								board[row][col] = num;
+								if (fillBoard()) {
+									return true; // 如果成功填充，返回true
+								}
+							}
+							board[row][col] = 0; // 如果所有数字都尝试过，回溯
+							return false;
+						}
+					}
+				}
+				return true; // 数独填充完成
+			}
+			// 获取可用的数字列表
+			function getAvailableNumbers(board, row, col) {
+				const usedNumbers = new Set();
+				const availableNumbers = [];
+				// 检查行
+				for (let i = 0; i < 9; i++) {
+					if (board[row][i] !== 0) {
+						usedNumbers.add(board[row][i]);
+					}
+				}
+				// 检查列
+				for (let i = 0; i < 9; i++) {
+					if (board[i][col] !== 0) {
+						usedNumbers.add(board[i][col]);
+					}
+				}
+				// 检查3x3宫格
+				const startRow = Math.floor(row / 3) * 3;
+				const startCol = Math.floor(col / 3) * 3;
+				for (let i = startRow; i < startRow + 3; i++) {
+					for (let j = startCol; j < startCol + 3; j++) {
+						if (board[i][j] !== 0) {
+							usedNumbers.add(board[i][j]);
+						}
+					}
+				}
+				// 构建可用数字列表
+				for (let num = 1; num <= 9; num++) {
+					if (!usedNumbers.has(num)) {
+						availableNumbers.push(num);
+					}
+				}
+				return availableNumbers;
+			}
+			// 洗牌函数，用于随机化数字的顺序
+			function shuffleArray(array) {
+				let currentIndex = array.length, temporaryValue, randomIndex;
+				while (0 !== currentIndex) {
+					randomIndex = Math.floor(Math.random() * currentIndex);
+					currentIndex -= 1;
+					temporaryValue = array[currentIndex];
+					array[currentIndex] = array[randomIndex];
+					array[randomIndex] = temporaryValue;
+				}
+				return array;
+			}
+			// 开始填充数独
+			fillBoard();
+			return board;
+		}
+
+        function checkSudoku() {
+			// 获取所有输入元素的值
+			const inputs = document.querySelectorAll('input.sudoku-cell[type="text"]');
+			const values = Array.from(inputs).map(cell => cell.value);
+			const userBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
+			// 将用户填写的数独转换回数组
+			for (let i = 0; i < 9; i++) {
+				for (let j = 0; j < 9; j++) {
+					userBoard[i][j] = parseInt(values[i * 9 + j]);
+				}
+			}
+			isValid = arraysEqual(sudoku, userBoard)
+			// 数独无效时显示错误信息
+			if (!isValid) {
+				const alertDiv = document.querySelector('#alert-message');
+				alertDiv.className = 'myAlert'; 
+				alertDiv.innerHTML = 'It is incorrect, please check it again';
+				document.body.appendChild(alertDiv);
+				
+				return;
+			}
+			
+			const alertDiv = document.querySelector('#alert-message');
+			alertDiv.className = 'myAlertSuccess'; 
+			alertDiv.innerHTML = 'Congratulations! You did it!';
+			document.body.appendChild(alertDiv);
+		}
+		
+		function arraysEqual(a, b) {
+			if (a.length !== b.length) return false;
+			for (let i = 0; i < a.length; i++) {
+				if (a[i].length !== b[i].length) return false;
+				for (let j = 0; j < a[i].length; j++) {
+					if (a[i][j] !== b[i][j]) return false;
+				}
+			}
+			return true;
+		}
+		
+		function showSolution() {
+            // 显示答案
+            const container = document.querySelector('.sudoku-container');
+			for (let i = 0; i < 9; i++) {
+				for (let j = 0; j < 9; j++) {
+					const cell = container.children[i].children[j];
+					if (!cell.classList.contains('disabled')) { // 只更新非禁用的单元格
+						cell.value = sudoku[i][j];
+					}
+				}
+			}
+        }
+
+		generateSudoku()
+    </script>
+</body>
+</html>

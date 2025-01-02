@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>烟花程序</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        button {
+            z-index: 10;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <button id="startFireworks">开始烟花</button>
+    <canvas id="fireworksCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('fireworksCanvas');
+        const ctx = canvas.getContext('2d');
+        const button = document.getElementById('startFireworks');
+        let fireworks = [];
+        let intervalId;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Firework {
+            constructor(x, y, color1, color2) {
+                this.x = x;
+                this.y = canvas.height;
+                this.targetY = y;
+                this.color1 = color1;
+                this.color2 = color2;
+                this.particles = [];
+                this.exploded = false;
+                this.spiralAngle = 0;
+                this.trail = []; // 保存轨迹点
+            }
+
+			createParticles() {
+				for (let i = 0; i < 100; i++) {
+					const angle = Math.random() * Math.PI * 2;
+					const speed = Math.random() * 3 + 2;
+					const color = Math.random() > 0.5 ? this.color1 : this.color2;
+					this.particles.push({
+						x: this.x,
+						y: this.y,
+						vx: Math.cos(angle) * speed,
+						vy: Math.sin(angle) * speed,
+						alpha: 1,
+						color: color,
+						trail: [] // 保存轨迹点
+					});
+				}
+			}
+
+            circleExplosion() {
+                for (let i = 0; i < 100; i++) {
+                    const angle = (Math.PI * 2) * (i / 100);
+                    const speed = Math.random() * 3 + 2;
+                    const color = i % 2 === 0 ? this.color1 : this.color2;
+                    this.particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        alpha: 1,
+                        color: color
+                    });
+                }
+            }
+
+            spiralExplosion() {
+                for (let i = 0; i < 100; i++) {
+                    const angle = (Math.PI * 2) * (i / 100) + this.spiralAngle;
+                    const speed = Math.random() * 3 + 2;
+                    const color = i % 2 === 0 ? this.color1 : this.color2;
+                    this.particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        alpha: 1,
+                        color: color
+                    });
+                }
+            }
+
+            scatterExplosion() {
+                for (let i = 0; i < 100; i++) {
+                    const speed = Math.random() * 5 + 1;
+                    const angle = Math.random() * Math.PI * 2;
+                    const color = Math.random() > 0.5 ? this.color1 : this.color2;
+                    this.particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        alpha: 1,
+                        color: color
+                    });
+                }
+            }
+
+            update() {
+                if (!this.exploded) {
+                    this.trail.push({ x: this.x, y: this.y, alpha: 1 }); // 添加轨迹点
+                    if (this.trail.length > 10) this.trail.shift(); // 限制轨迹点数量
+                    this.trail.forEach((point, index) => point.alpha -= 0.05 * (index / this.trail.length)); // 按轨迹渐变调整透明度
+
+                    this.y -= 5;
+                    if (this.y <= this.targetY) {
+                        this.exploded = true;
+                        this.createParticles();
+                    }
+                } else {
+                    this.spiralAngle += 0.2; // 让螺旋效果更明显
+                    this.particles.forEach(particle => {
+						particle.trail.push({ x: particle.x, y: particle.y, alpha: particle.alpha });
+						if (particle.trail.length > 10) particle.trail.shift(); // 限制轨迹长度
+						particle.x += particle.vx;
+						particle.y += particle.vy;
+						particle.alpha -= 0.02;
+					});
+					this.particles = this.particles.filter(p => p.alpha > 0);
+				}
+            }
+
+            draw() {
+                if (!this.exploded) {
+					// 绘制轨迹
+					this.trail.forEach((point, index) => {
+						ctx.globalAlpha = point.alpha;
+						const trailWidth = Math.max(8 - index * 1.5, 0.1); // 轨迹宽度逐渐减小
+						ctx.strokeStyle = this.color1;
+						ctx.lineWidth = trailWidth;
+						ctx.beginPath();
+						ctx.moveTo(point.x, point.y);
+						ctx.lineTo(this.x, this.y);
+						ctx.stroke();
+					});
+					this.trail.forEach((point, index) => point.alpha -= 0.1 * (index / this.trail.length)); // 加快透明度衰减
+				} else {
+					this.particles.forEach(particle => {
+						// 绘制拖尾
+						for (let i = 0; i < particle.trail.length - 1; i++) {
+							const start = particle.trail[i];
+							const end = particle.trail[i + 1];
+							ctx.globalAlpha = start.alpha * (1 - i / particle.trail.length); // 逐渐变淡
+							ctx.strokeStyle = particle.color;
+							ctx.lineWidth = Math.max(2 - i * 0.2, 0.5); // 逐渐变细
+							ctx.beginPath();
+							ctx.moveTo(start.x, start.y);
+							ctx.lineTo(end.x, end.y);
+							ctx.stroke();
+						}
+
+						// 绘制粒子
+						ctx.globalAlpha = particle.alpha;
+						ctx.fillStyle = particle.color;
+						ctx.beginPath();
+						ctx.arc(particle.x, particle.y, 3, 0, 2 * Math.PI);
+						ctx.fill();
+					});
+					ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        function launchFirework() {
+            const colors = [
+                ['#d2d741', '#879628'], 
+                ['#e687a5', '#9b1e5a'], 
+                ['#7dd2e6', '#2387aa'], 
+                ['#78cdcd', '#239196'], 
+                ['#ffcd50', '#eb780a'],  
+                ['#ffef00', '#b38f00'], // 明亮黄与深黄
+                ['#e6a7e6', '#7a298f'], // 淡紫与深紫
+                ['#50d2d2', '#008080'], // 青绿与深青
+                ['#a3e635', '#4CAF50']  // 鲜绿与常青绿
+            ];
+
+            const fireworksSize = Math.floor(Math.random() * 3) + 5; //每次5-8个烟花
+            for (let i = 0; i < fireworksSize; i++) { // 同时发射更多烟花
+                const [color1, color2] = colors[Math.floor(Math.random() * colors.length)];
+                const x = 100 + Math.random() * (canvas.width - 200);
+                const y = Math.random() * canvas.height * 0.5 + 100;
+                fireworks.push(new Firework(x, y, color1, color2));
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            fireworks.forEach(firework => {
+                firework.update();
+                firework.draw();
+            });
+            fireworks = fireworks.filter(firework => firework.exploded ? firework.particles.length > 0 : true);
+            requestAnimationFrame(animate);
+        }
+
+        button.addEventListener('click', () => {
+            if (intervalId) return; // 防止重复点击
+
+            launchFirework();
+            intervalId = setInterval(launchFirework, 1000); // 每秒触发多个烟花
+
+            setTimeout(() => {
+                clearInterval(intervalId);
+                intervalId = null;
+            }, 3 * 60 * 1000); // 3 分钟后停止
+        });
+
+        animate();
+    </script>
+</body>
+</html>
