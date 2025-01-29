@@ -153,8 +153,8 @@
 
                 const value = Object.keys(cardValues).find(key => cardValues[key] === num) || num;
                 const suit = suits[Math.floor(Math.random() * suits.length)];
-                //const imgSrc = `https://deckofcardsapi.com/static/img/${value}${suit}.png`;
-				const imgSrc = `https://pokeresources.com/images/${value}${suit}.png`;
+                const imgSrc = `https://deckofcardsapi.com/static/img/${value}${suit}.png`;
+				//const imgSrc = `https://pokeresources.com/images/${value}${suit}.png`;
 
                 card.innerHTML = `<img src="${imgSrc}" alt="${value}${suit}">`;
                 cardsDiv.appendChild(card);
